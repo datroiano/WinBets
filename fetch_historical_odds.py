@@ -18,6 +18,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+
 # === UTILITY FUNCTIONS ===
 def american_to_decimal(american_odds: float) -> float:
     """
@@ -30,9 +31,10 @@ def american_to_decimal(american_odds: float) -> float:
     else:
         return round(100.0 / abs(american_odds) + 1.0, 2)
 
+
 def fetch_event_id(game_date_iso: str):
     """
-    Fetch the Odds API event ID for the given MLB historical date/time.
+    Fetch the Odds API event ID for the given MLB historical date and time.
     """
     url = "https://api.the-odds-api.com/v4/historical/sports/baseball_mlb/events"
     params = {
@@ -46,6 +48,7 @@ def fetch_event_id(game_date_iso: str):
         if ev.get("commence_time") == game_date_iso:
             return ev.get("id")
     return None
+
 
 def fetch_totals_for_event(event_id: str, game_date_iso: str):
     """
@@ -73,10 +76,14 @@ def fetch_totals_for_event(event_id: str, game_date_iso: str):
                         return point, american_to_decimal(price)
     return None, None
 
+
 # === MAIN SCRIPT ===
 def main():
     # Load Excel sheet
     df = pd.read_excel(INPUT_FILE, sheet_name=SHEET_NAME)
+
+    # Debug: print available columns
+    logging.info(f"Columns in sheet: {list(df.columns)}")
 
     # Prepare output columns
     df["OverUnderTotal"] = None
@@ -86,12 +93,12 @@ def main():
     logging.info(f"Processing {total_games} games from {INPUT_FILE}")
 
     for idx, row in df.iterrows():
-        game_id = row.get("gameID")
-        game_date = row.get("gameDate")
+        game_id = row.get("GameID")  # Corrected column name
+        game_date = row.get("GameDate")  # Corrected column name
 
         # Validate fields
         if pd.isna(game_id) or pd.isna(game_date):
-            logging.error(f"Missing data for row {idx+1}: gameID or gameDate is null. Skipping.")
+            logging.error(f"Missing data for row {idx + 1}: GameID or GameDate is null. Skipping.")
             continue
 
         # Construct ISO8601 timestamp with 'Z'
@@ -101,11 +108,11 @@ def main():
             try:
                 dt = datetime.fromisoformat(str(game_date))
                 iso_dt = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-            except ValueError as e:
-                logging.error(f"Invalid date format for game {game_id}: {game_date}. Skipping.")
+            except ValueError:
+                logging.error(f"Invalid GameDate format for row {idx + 1}: {game_date}. Skipping.")
                 continue
 
-        logging.info(f"[{idx+1}/{total_games}] Fetching event ID for game {game_id} on {iso_dt}")
+        logging.info(f"[{idx + 1}/{total_games}] Fetching event ID for game {game_id} on {iso_dt}")
         try:
             event_id = fetch_event_id(iso_dt)
         except Exception as e:
@@ -113,10 +120,10 @@ def main():
             continue
 
         if not event_id:
-            logging.error(f"No event ID found for game {game_id} at {iso_dt}. Skipping.")
+            logging.error(f"No event ID found for GameID {game_id} at {iso_dt}. Skipping.")
             continue
 
-        logging.info(f"Found event ID {event_id}; now fetching totals odds")
+        logging.info(f"Found event ID {event_id}; fetching totals odds")
         try:
             point, dec_odds = fetch_totals_for_event(event_id, iso_dt)
         except Exception as e:
@@ -131,13 +138,13 @@ def main():
         df.at[idx, "OverUnderTotal"] = point
         df.at[idx, "Odds"] = dec_odds
 
-        # Optional sleep to respect rate limits
+        # Optional rate-limit pause
         time.sleep(1)
 
     # Save updated workbook
     df.to_excel(OUTPUT_FILE, index=False)
     logging.info(f"Finished! Saved updated data to: {OUTPUT_FILE}")
 
+
 if __name__ == "__main__":
     main()
-
