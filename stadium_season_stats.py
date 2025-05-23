@@ -262,8 +262,36 @@ class StadiumSeasonStatsExporter:
         
         # Create Excel writer
         with pd.ExcelWriter(filename, engine='openpyxl') as writer:
-            # Main games data
-            df.to_excel(writer, sheet_name='Games_Data', index=False)
+            # Create primary worksheet with specific columns
+            primary_df = df[df['GameStatus'] == 'Final'].copy()
+            
+            # Calculate TotalRuns
+            primary_df['TotalRuns'] = primary_df['HomeScore'] + primary_df['AwayScore']
+            
+            # Add new columns (empty for now)
+            primary_df['WindDirection'] = ''
+            primary_df['WindSpeed'] = ''
+            primary_df['OverUnderLine'] = None
+            primary_df['Differential'] = None
+            
+            # Select and reorder columns for primary worksheet
+            primary_columns = [
+                'GameID',
+                'GameDate',
+                'HomeScore',
+                'AwayScore',
+                'TotalRuns',
+                'WindDirection',
+                'WindSpeed',
+                'OverUnderLine',
+                'Differential'
+            ]
+            
+            primary_df = primary_df[primary_columns]
+            primary_df.to_excel(writer, sheet_name='Primary', index=False)
+            
+            # Full stats data
+            df.to_excel(writer, sheet_name='Full_Stats', index=False)
             
             # Summary statistics
             if not df.empty:
@@ -331,6 +359,7 @@ class StadiumSeasonStatsExporter:
         
         print(f"\nData exported to: {filename}")
         print(f"Total games analyzed: {len(df)}")
+        print(f"Final games in primary worksheet: {len(primary_df)}")
         
         return filename
 
