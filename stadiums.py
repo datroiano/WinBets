@@ -41,15 +41,11 @@ def fetch_mlb_stadiums():
         })
 
     df = pd.DataFrame(rows)
-    
-    # Save to Excel
-    output_path = "mlb_weather_stadiums.xlsx"
-    df.to_excel(output_path, index=False)
+
     
     # Display to user
     print("\nMLB Stadiums:")
     print(df)
-    print(f"\nSaved stadium list to: {output_path}")
 
 if __name__ == "__main__":
     fetch_mlb_stadiums()
