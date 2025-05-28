@@ -152,8 +152,8 @@ stadium_data = [
         "Latitude": 47.591333,
         "Longitude": -122.33251,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 48.5,
+        "OutdoorOnly": "No"
     },
     {
         "StadiumID": 2602,
@@ -163,8 +163,8 @@ stadium_data = [
         "Latitude": 39.097389,
         "Longitude": -84.506611,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 122.94,
+        "OutdoorOnly": "Yes"
     },
     {
         "StadiumID": 4169,
@@ -174,8 +174,8 @@ stadium_data = [
         "Latitude": 25.77796236,
         "Longitude": -80.21951795,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 129.3,
+        "OutdoorOnly": "No"
     },
     {
         "StadiumID": 2889,
@@ -185,8 +185,8 @@ stadium_data = [
         "Latitude": 38.62256667,
         "Longitude": -90.19286667,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 62.07,
+        "OutdoorOnly": "Yes"
     },
     {
         "StadiumID": 5325,
@@ -197,7 +197,7 @@ stadium_data = [
         "Longitude": -97.081818,
         "FieldInfo": "",
         "CompassBearing": None,
-        "OutdoorOnly": None
+        "OutdoorOnly": "No"
     },
     {
         "StadiumID": 2392,
@@ -207,8 +207,8 @@ stadium_data = [
         "Latitude": 29.756967,
         "Longitude": -95.355509,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 345.67,
+        "OutdoorOnly": "No"
     },
     {
         "StadiumID": 3289,
@@ -218,8 +218,8 @@ stadium_data = [
         "Latitude": 40.75753012,
         "Longitude": -73.84559155,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 13.11,
+        "OutdoorOnly": "Yes"
     },
     {
         "StadiumID": 2394,
@@ -229,8 +229,8 @@ stadium_data = [
         "Latitude": 42.3391151,
         "Longitude": -83.048695,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 151.76,
+        "OutdoorOnly": "Yes"
     },
     {
         "StadiumID": 2395,
@@ -240,8 +240,8 @@ stadium_data = [
         "Latitude": 37.778383,
         "Longitude": -122.389448,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 84.77,
+        "OutdoorOnly": "Yes"
     },
     {
         "StadiumID": 2523,
@@ -251,8 +251,8 @@ stadium_data = [
         "Latitude": 27.97997,
         "Longitude": -82.50702,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 60.39,
+        "OutdoorOnly": "Yes"
     },
     {
         "StadiumID": 4705,
@@ -262,8 +262,8 @@ stadium_data = [
         "Latitude": 33.890672,
         "Longitude": -84.467641,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 149,
+        "OutdoorOnly": "Yes"
     },
     {
         "StadiumID": 2529,
@@ -273,8 +273,8 @@ stadium_data = [
         "Latitude": 38.57994,
         "Longitude": -121.51246,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 46.68,
+        "OutdoorOnly": "Yes"
     },
     {
         "StadiumID": 3309,
@@ -284,8 +284,8 @@ stadium_data = [
         "Latitude": 38.872861,
         "Longitude": -77.007501,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 28.51,
+        "OutdoorOnly": "Yes"
     },
     {
         "StadiumID": 3312,
@@ -295,8 +295,8 @@ stadium_data = [
         "Latitude": 44.981829,
         "Longitude": -93.277891,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 90,
+        "OutdoorOnly": "Yes"
     },
     {
         "StadiumID": 3313,
@@ -317,8 +317,8 @@ stadium_data = [
         "Latitude": 32.707861,
         "Longitude": -117.157278,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 360,
+        "OutdoorOnly": "Yes"
     },
     {
         "StadiumID": 2681,
@@ -328,7 +328,7 @@ stadium_data = [
         "Latitude": 39.90539086,
         "Longitude": -75.16716957,
         "FieldInfo": "",
-        "CompassBearing": None,
-        "OutdoorOnly": None
+        "CompassBearing": 9.41,
+        "OutdoorOnly": "Yes"
     }
 ]
