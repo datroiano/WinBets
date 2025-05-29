@@ -1,151 +1,163 @@
 #!/usr/bin/env python3
-"""
-get_weather.py
-
-Reads 'input_with_odds.xlsx', filters out rows without OverUnderTotal,
-fetches 3‑hour average weather (temperature, humidity, wind speed/direction,
-condition) around each GameDate using the Open‑Meteo Archive API (m/s units),
-converts to °F and mph, and writes the enriched data to 'weather_ready.xlsx'.
-"""
-
-import requests
-import math
-from collections import Counter
-from datetime import datetime, timedelta
 import pandas as pd
+import requests
+import time
+import math
+from datetime import timedelta
 
-def get_3hr_weather_avg(game_date_str, latitude, longitude):
-    """
-    Fetch historical weather data from the Open‑Meteo Archive API in m/s,
-    then compute 3‑hour averages for temperature (°C), relative humidity (%),
-    wind speed (m/s), wind direction (°), and the most common weather condition.
+# ─── CONFIG ────────────────────────────────────────────────────────────────────
+INPUT_FILE       = 'stats_v4.xlsx'
+OUTPUT_FILE      = 'stats_v5.xlsx'
+SHEETS           = ['Main', 'IndoorExtras']
+MAX_ROWS         = None    # max rows per sheet for testing; set to None to do all
+WEATHER_URL      = 'https://archive-api.open-meteo.com/v1/archive'
 
-    :param game_date_str: str, 'YYYY‑MM‑DD HH:MM:SS'
-    :param latitude: float
-    :param longitude: float
-    :return: dict with keys:
-        - average_temperature_C
-        - average_humidity_percent
-        - average_wind_speed_m_s
-        - average_wind_direction_degrees
-        - most_common_condition
-    """
-    # Parse the input datetime
-    dt = datetime.strptime(game_date_str, '%Y-%m-%d %H:%M:%S')
+HOURLY_VARS = [
+    'temperature_2m',
+    'pressure_msl',
+    'relative_humidity_2m',
+    'dew_point_2m',
+    'apparent_temperature',
+    'wind_speed_10m',
+    'wind_direction_10m',
+    'wind_gusts_10m',
+    'precipitation'
+]
 
-    # Build a ±1.5 hour window
-    start_window = dt - timedelta(hours=1.5)
-    end_window   = dt + timedelta(hours=1.5)
+WEATHER_PARAMS = {
+    'hourly':            ','.join(HOURLY_VARS),
+    'temperature_unit':  'fahrenheit',
+    'wind_speed_unit':   'mph',
+    'timeformat':        'iso8601',
+    'timezone':          'UTC'
+}
 
-    # API expects YYYY‑MM‑DD date strings
-    start_date = start_window.date().isoformat()
-    end_date   = end_window.date().isoformat()
+def safe_fetch(params):
+    """Fetch with one retry on failure."""
+    for attempt in (1, 2):
+        try:
+            r = requests.get(WEATHER_URL, params=params, timeout=10)
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            print(f"⚠️  Fetch attempt {attempt} failed: {e}")
+            if attempt == 1:
+                time.sleep(2)
+    return None
 
-    url = "https://archive-api.open-meteo.com/v1/archive"
-    params = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "start_date": start_date,
-        "end_date": end_date,
-        # request wind_speed in m/s explicitly
-        "hourly": "temperature_2m,relativehumidity_2m,wind_speed_10m,wind_direction_10m,weathercode",
-        "wind_speed_unit": "ms",
-        "timezone": "auto",
-    }
+def weighted_avg(vals, weights):
+    total_w = 0.0
+    cum     = 0.0
+    for v, w in zip(vals, weights):
+        if v is not None:
+            cum     += v * w
+            total_w += w
+    return cum/total_w if total_w else None
 
-    resp = requests.get(url, params=params, timeout=10)
-    resp.raise_for_status()
-    hourly = resp.json().get("hourly", {})
+def classify_wind(compass_bearing, wind_dir):
+    diff = (wind_dir - compass_bearing + 360) % 360
+    if diff <= 50 or diff >= 310:
+        cat = 'Headwind'
+    elif 130 <= diff <= 230:
+        cat = 'Tailwind'
+    else:
+        cat = 'Crosswind'
+    vec = math.cos(math.radians(diff))
+    return cat, vec
 
-    temps, hums, winds, wind_dirs_rad, codes = [], [], [], [], []
-    for time_str, temp, hum, wspd, wdir, code in zip(
-        hourly.get("time", []),
-        hourly.get("temperature_2m", []),
-        hourly.get("relativehumidity_2m", []),
-        hourly.get("wind_speed_10m", []),
-        hourly.get("wind_direction_10m", []),
-        hourly.get("weathercode", []),
-    ):
-        t = datetime.fromisoformat(time_str)
-        if start_window <= t <= end_window:
-            temps.append(temp)
-            hums.append(hum)
-            winds.append(wspd)
-            wind_dirs_rad.append(math.radians(wdir))
-            codes.append(code)
+def process_sheet(df):
+    df['commence_time'] = pd.to_datetime(df['commence_time']).dt.tz_localize(None)
 
-    if not temps:
-        raise ValueError("No weather data available in the 3‑hour window")
+    new_cols = [
+        'Temp_F', 'Pressure_msl',
+        'RelHumidity', 'DewPoint', 'ApparentTemp',
+        'WindSpeed_mph', 'WindDir', 'WindGusts_mph',
+        'WindCategory', 'WindVector',
+        'Precipitation'
+    ]
+    for c in new_cols:
+        df[c] = None
 
-    # Arithmetic means
-    avg_temp = sum(temps) / len(temps)
-    avg_hum  = sum(hums) / len(hums)
-    avg_wind = sum(winds) / len(winds)
+    rows = df.index if MAX_ROWS is None else df.index[:MAX_ROWS]
+    for idx in rows:
+        row = df.loc[idx]
+        lat = row['Latitude']
+        lon = row['Longitude']
+        start = row['commence_time']
+        cbearing = row['CompassBearing']
 
-    # Circular mean for wind direction
-    sin_sum = sum(math.sin(rad) for rad in wind_dirs_rad)
-    cos_sum = sum(math.cos(rad) for rad in wind_dirs_rad)
-    avg_dir = math.degrees(math.atan2(sin_sum/len(wind_dirs_rad),
-                                      cos_sum/len(wind_dirs_rad))) % 360
+        # align to top of the hour, then build 3‑hour window
+        base = start.replace(minute=0, second=0, microsecond=0)
+        times = [base + timedelta(hours=i) for i in range(3)]
+        start_date = times[0].date().isoformat()
+        end_date   = times[-1].date().isoformat()
 
-    # Map the most frequent weather code to text
-    most_code = Counter(codes).most_common(1)[0][0]
-    weather_map = {
-        0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
-        45: "Fog", 48: "Depositing rime fog", 51: "Light drizzle", 53: "Moderate drizzle",
-        55: "Dense drizzle", 56: "Light freezing drizzle", 57: "Dense freezing drizzle",
-        61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
-        66: "Light freezing rain", 67: "Heavy freezing rain", 71: "Slight snow fall",
-        73: "Moderate snow fall", 75: "Heavy snow fall", 77: "Snow grains",
-        80: "Slight rain showers", 81: "Moderate rain showers", 82: "Violent rain showers",
-        85: "Slight snow showers", 86: "Heavy snow showers", 95: "Thunderstorm",
-        96: "Thunderstorm with slight hail", 99: "Thunderstorm with heavy hail"
-    }
-    condition = weather_map.get(most_code, "Unknown")
+        params = WEATHER_PARAMS.copy()
+        params.update({
+            'latitude':   lat,
+            'longitude':  lon,
+            'start_date': start_date,
+            'end_date':   end_date
+        })
 
-    return {
-        "average_temperature_C":        avg_temp,
-        "average_humidity_percent":     avg_hum,
-        "average_wind_speed_m_s":       avg_wind,
-        "average_wind_direction_degrees": avg_dir,
-        "most_common_condition":        condition,
-    }
+        data = safe_fetch(params)
+        if not data:
+            print(f"❌  No weather data for row {idx}, skipping")
+            continue
 
+        hourly     = data.get('hourly', {})
+        time_index = hourly.get('time', [])
 
-# Example usage
-if __name__ == "__main__":
-    import pandas as pd
+        vals = {}
+        for var in HOURLY_VARS:
+            arr = hourly.get(var, [])
+            # map the ISO strings to Timestamps
+            mapping = {pd.to_datetime(t): v for t, v in zip(time_index, arr)}
+            vals[var] = [mapping.get(t) for t in times]
 
-    # ——— manually set your stadium coordinates here ———
-    latitude  =  40.82919482
-    longitude =  -73.9264977
+        weights = [1.0, 1.0, 0.5]
 
-    # 1. Load & filter input
-    df = pd.read_excel("input_with_odds.xlsx")
-    df = df.drop(columns=["OverUnderLine"])
-    df = df[df["OverUnderTotal"].notna()].reset_index(drop=True)
+        df.at[idx, 'Temp_F']       = weighted_avg(vals['temperature_2m'], weights)
+        df.at[idx, 'Pressure_msl'] = weighted_avg(vals['pressure_msl'],    weights)
+        df.at[idx, 'RelHumidity']  = weighted_avg(vals['relative_humidity_2m'], weights)
+        df.at[idx, 'DewPoint']     = weighted_avg(vals['dew_point_2m'],    weights)
+        df.at[idx, 'ApparentTemp'] = weighted_avg(vals['apparent_temperature'], weights)
 
-    # 2. Collect weather stats
-    temps_C, hums, winds_ms, wind_dirs = [], [], [], []
-    for _, row in df.iterrows():
-        gd = row["GameDate"]
-        if not isinstance(gd, str):
-            gd = gd.strftime("%Y-%m-%d %H:%M:%S")
-        w = get_3hr_weather_avg(gd, latitude, longitude)
-        temps_C.append(w["average_temperature_C"])
-        hums.append(w["average_humidity_percent"])
-        winds_ms.append(w["average_wind_speed_m_s"])
-        wind_dirs.append(w["average_wind_direction_degrees"])
+        ws = weighted_avg(vals['wind_speed_10m'],    weights)
+        wd = weighted_avg(vals['wind_direction_10m'],weights)
+        wg = weighted_avg(vals['wind_gusts_10m'],    weights)
+        df.at[idx, 'WindSpeed_mph'] = ws
+        df.at[idx, 'WindDir']       = wd
+        df.at[idx, 'WindGusts_mph'] = wg
 
-    # 3. Convert & append new columns
-    MS_TO_MPH = 3600.0 / 1609.344  # exact m/s → mph factor
-    df["AverageTempF"] = [round(c * 9 / 5 + 32, 1) for c in temps_C]
-    df["AverageHumidity"] = [round(h, 1) for h in hums]
-    df["AverageWindSpeedMph"] = [round(m * MS_TO_MPH, 1) for m in winds_ms]
-    df["AverageWindDirection"] = [round(d, 0) for d in wind_dirs]
+        cat, vec = None, None
+        if ws is not None and wd is not None:
+            cat, vec = classify_wind(cbearing, wd)
+            df.at[idx, 'WindCategory'] = cat
+            df.at[idx, 'WindVector']   = ws * vec
 
-    # 4. Save to new Excel
-    df.to_excel("weather_ready.xlsx", index=False)
+        df.at[idx, 'Precipitation'] = weighted_avg(vals['precipitation'], weights)
 
-    print("Done: weather_ready.xlsx created with weather data.")
+        temp_str = f"{df.at[idx,'Temp_F']:.1f}" if df.at[idx,'Temp_F'] is not None else "N/A"
+        ws_str   = f"{ws:.1f}"               if ws is not None           else "N/A"
+        cat_str  = f" {cat}"                 if cat else ""
+        print(f"✅  Row {idx} done: Temp={temp_str}F, Wind={ws_str}mph{cat_str}")
 
+    return df
+
+def main():
+    writer = pd.ExcelWriter(OUTPUT_FILE, engine='openpyxl')
+
+    for sheet in SHEETS:
+        print(f"\n--- Processing sheet '{sheet}' ---")
+        df = pd.read_excel(INPUT_FILE, sheet_name=sheet)
+        df = process_sheet(df)
+        df.to_excel(writer, sheet_name=sheet, index=False)
+        print(f"--- Finished '{sheet}' ---")
+
+    writer._save()
+    print(f"\n🎉 Saved as {OUTPUT_FILE}")
+
+if __name__ == '__main__':
+    main()
+w
